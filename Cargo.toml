@@ -1,0 +1,17 @@
+[package]
+name = "rs_tree"
+version = "0.1.0"
+edition = "2024"
+description = "A cross-platform tree command implementation in Rust"
+repository = "https://github.com/kznagamori/rs_tree"
+license = "MIT"
+authors = ["kznagamori <kazuyuki.nagamori@gmail.com>"]
+
+[[bin]]
+name = "rs_tree"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+regex = "1.0"
+walkdir = "2.3"
