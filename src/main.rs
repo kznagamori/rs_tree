@@ -90,8 +90,6 @@ impl Config {
 /// ツリー構造のノードを表現する構造体
 #[derive(Debug)]
 struct TreeNode {
-    /// ノードのパス
-    path: PathBuf,
     /// ファイル名
     name: String,
     /// ディレクトリかどうか
@@ -110,9 +108,8 @@ impl TreeNode {
     ///
     /// # Returns
     /// 新しいTreeNodeインスタンス
-    fn new(path: PathBuf, name: String, is_dir: bool) -> Self {
+    fn new(name: String, is_dir: bool) -> Self {
         TreeNode {
-            path,
             name,
             is_dir,
             children: Vec::new(),
@@ -231,14 +228,12 @@ impl TreePrinter {
         // 最大深度チェック
         if let Some(max_depth) = self.config.max_depth {
             if current_depth > max_depth {
-                eprintln!("Debug: Reached max depth {} at path: {}", max_depth, dir_path.display());
                 return None;
             }
         }
 
         // 除外されたパスの子要素かチェック
         if self.is_descendant_of_excluded(dir_path) {
-            eprintln!("Debug: Path excluded (descendant): {}", dir_path.display());
             return None;
         }
 
@@ -248,29 +243,18 @@ impl TreePrinter {
             dir_path.file_name()?.to_string_lossy().to_string()
         };
 
-        eprintln!("Debug: Processing directory: {} (depth: {})", dir_path.display(), current_depth);
-
-        let mut node = TreeNode::new(dir_path.to_path_buf(), name, true);
+        let mut node = TreeNode::new(name, true);
 
         // ディレクトリの内容を読み取り
         let mut entries = match std::fs::read_dir(dir_path) {
             Ok(entries) => {
                 let collected: Result<Vec<_>, _> = entries.collect();
                 match collected {
-                    Ok(entries) => {
-                        eprintln!("Debug: Found {} entries in {}", entries.len(), dir_path.display());
-                        entries
-                    }
-                    Err(e) => {
-                        eprintln!("Debug: Error collecting entries: {}", e);
-                        return Some(node);
-                    }
+                    Ok(entries) => entries,
+                    Err(_) => return Some(node),
                 }
             }
-            Err(e) => {
-                eprintln!("Debug: Cannot read directory {}: {}", dir_path.display(), e);
-                return Some(node);
-            }
+            Err(_) => return Some(node),
         };
 
         // ファイル名でソート
@@ -281,11 +265,8 @@ impl TreePrinter {
             let is_dir = path.is_dir();
             let file_name = entry.file_name().to_string_lossy().to_string();
 
-            eprintln!("Debug: Examining entry: {} (is_dir: {})", file_name, is_dir);
-
             // 除外パターンのチェック
             if self.should_exclude(&file_name) {
-                eprintln!("Debug: Excluding: {}", file_name);
                 // 除外されたパスを記録
                 self.excluded_paths.insert(path.clone());
                 continue;
@@ -293,28 +274,21 @@ impl TreePrinter {
 
             // ディレクトリ専用モードでファイルをスキップ
             if self.config.directories_only && !is_dir {
-                eprintln!("Debug: Skipping file (directories only): {}", file_name);
                 continue;
             }
 
             if is_dir {
-                eprintln!("Debug: Processing subdirectory: {}", file_name);
                 // 再帰的にサブディレクトリを処理
                 if let Some(child_node) = self.build_tree_recursive(&path, current_depth + 1) {
                     node.add_child(child_node);
-                    eprintln!("Debug: Added child directory: {}", file_name);
-                } else {
-                    eprintln!("Debug: Subdirectory returned None: {}", file_name);
                 }
             } else {
-                eprintln!("Debug: Adding file: {}", file_name);
                 // ファイルノードを追加
-                let file_node = TreeNode::new(path, file_name, false);
+                let file_node = TreeNode::new(file_name, false);
                 node.add_child(file_node);
             }
         }
 
-        eprintln!("Debug: Node {} has {} children", node.name, node.children.len());
         Some(node)
     }
 
@@ -323,14 +297,7 @@ impl TreePrinter {
         let start_path = self.config.start_path.clone();
         let show_files = !self.config.directories_only;
         
-        eprintln!("Debug: Starting tree display from: {}", start_path.display());
-        eprintln!("Debug: Max depth: {:?}", self.config.max_depth);
-        eprintln!("Debug: Directories only: {}", self.config.directories_only);
-        eprintln!("Debug: Exclude patterns: {}", self.config.exclude_patterns.len());
-        
         if let Some(root) = self.build_tree_recursive(&start_path, 0) {
-            eprintln!("Debug: Root node created with {} children", root.children.len());
-            
             let mut file_count = 0;
             let mut dir_count = 0;
 
@@ -360,8 +327,6 @@ impl TreePrinter {
 
             // 統計情報の表示
             self.display_statistics(dir_count, file_count);
-        } else {
-            eprintln!("Debug: build_tree_recursive returned None!");
         }
     }
 
